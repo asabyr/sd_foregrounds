@@ -19,17 +19,6 @@ def DeltaI_DeltaT(freqs, DeltaT_amp=1.2e-4):
 
 def DeltaI_mu(freqs, mu_amp=2.e-8):
     X = hplanck*freqs/(kboltz*TCMB)
-    #fisher tests
-    #mudist=(mu_amp * (X / 2.1923 - 1.0)/X * X**4.0 * np.exp(X)/(np.exp(X) - 1.0)**2.0 * 2.0*(kboltz*TCMB)**3.0 / (hplanck*clight)**2.0 * jy).astype(ndp)
-    #
-    # dIabs=np.abs(mudist)
-    # min_ind=argrelmin(dIabs, axis=0)
-    # #
-    # newind_start1=min_ind[0][0]-20
-    # newind_end1=min_ind[0][0]+20
-    # rm_arr1=np.arange(newind_start1,newind_end1,1)
-    # np.put(mudist, rm_arr1, 0)
-    # return mudist
     return (mu_amp * (X / 2.1923 - 1.0)/X * X**4.0 * np.exp(X)/(np.exp(X) - 1.0)**2.0 * 2.0*(kboltz*TCMB)**3.0 / (hplanck*clight)**2.0 * jy).astype(ndp)
 
 def DeltaI_reltSZ_2param_yweight(freqs, y_tot=1.59e-6, kT_yweight=1.245):
@@ -62,39 +51,7 @@ def DeltaI_cib(nu, dIcib_amp=1.0):
 
     nu0, dI0 = np.loadtxt("/Users/asabyr/Documents/SecondYearProject/SHB2022/dI_files/dIcib_interp1000_sample100_y6cib12_final.txt",unpack=True)
 
-    # nu0=nuold[::5]
-    # dI0=dIold[::5]
     func = interpolate.interp1d(np.log10(nu0), dI0, kind='cubic')
     dInew = func(np.log10(nu))
-    #fisher tests 
-    #func = interpolate.interp1d(np.log10(nu0), dI0, kind='cubic')
-    # dInew= func(np.log10(nu))
-    #
-    # dIabs=np.abs(dInew)
-    # min_ind=argrelmin(dIabs, axis=0)
-    # #
-    # newind_start1=min_ind[0][0]-20
-    # newind_end1=min_ind[0][0]+20
-    # rm_arr1=np.arange(newind_start1,newind_end1,1)
-    #
-    # newind_start2=min_ind[0][1]-20
-    # newind_end2=min_ind[0][1]+20
-    # rm_arr2=np.arange(newind_start2,newind_end2,1)
-    # rm_arr=np.concatenate((rm_arr1, rm_arr2), axis=0)
-    # np.put(dInew, rm_arr, 0)
-    # print(dInew)
-    #
-    # plt.figure(figsize=(10,8))
-    # plt.plot(nu, np.abs(dInew), color="red", marker='o')
-    # plt.plot(nu0, np.abs(dI0), color="black",marker='o')
-    # plt.xscale("log")
-    # plt.yscale("log")
-    # plt.savefig("interpdI.pdf")
-    # print("saving interpolation")
-    # dI_file=open("dI_interp.txt","w")
-    # np.savetxt(dI_file,nu)
-    # np.savetxt(dI_file,dInew)
-    # dI_file.close()
-
+    
     return (dIcib_amp*dInew*jy).astype(ndp)
-    #return rm_arr

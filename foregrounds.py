@@ -43,11 +43,7 @@ def cib_rad(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8, Acib_sz=1.0):
     dI=DeltaI_cib(nu, dIcib_amp=Acib_sz)
 
     return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy+dI).astype(ndp)
-    # nu0, dI0 = np.loadtxt("/Users/asabyr/Documents/SecondYearProject/SZ_CIB/dI_005_7_final.txt",unpack=True)
-    # func = interpolate.interp1d(np.log10(nu0), dI0, kind='cubic')
-    # dInew = func(np.log10(nu))
-    #
-    # return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy+Acib_sz*dInew*1.e26).astype(ndp)
+    
 
 def cib_rad_old(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
 
