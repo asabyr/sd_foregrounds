@@ -1,12 +1,16 @@
 import numpy as np
 from numpy import log10
 from scipy import interpolate
+import matplotlib.pyplot as plt
+from spectral_distortions import DeltaI_cib
+import sys
 
 hplanck = 6.626070150e-34  # MKS
 kboltz = 1.380649e-23  # MKS
 #jy = 1.e-26
 jy = 1.
 ndp = np.float64
+
 
 def jens_synch_rad(nu, As=288., alps=-0.82, w2s=0.2):
     nu0s = 100.e9
@@ -24,7 +28,7 @@ def jens_freefree_rad(nu, EM=300.):
     return (EM * gff * jy).astype(ndp)
 
 def spinning_dust(nu, Asd=1.):
-    ame_file = np.load('templates/ame.npy').astype(ndp)
+    ame_file = np.load('/Users/asabyr/Documents/SecondYearProject/sd_foregrounds/templates/ame.npy').astype(ndp)
     ame_nu = ame_file[0]
     ame_I = ame_file[1]
     fsd = interpolate.interp1d(log10(ame_nu), log10(ame_I), bounds_error=False, fill_value="extrapolate")
@@ -34,17 +38,29 @@ def thermal_dust_rad(nu, Ad=1.36e6, Bd=1.53, Td=21.):
     X = hplanck * nu / (kboltz * Td)
     return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
-def cib_rad(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
+def cib_rad(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8, Acib_sz=1.0):
     X = hplanck * nu / (kboltz * Tcib)
+    dI=DeltaI_cib(nu, dIcib_amp=Acib_sz)
+
+    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy+dI).astype(ndp)
+    # nu0, dI0 = np.loadtxt("/Users/asabyr/Documents/SecondYearProject/SZ_CIB/dI_005_7_final.txt",unpack=True)
+    # func = interpolate.interp1d(np.log10(nu0), dI0, kind='cubic')
+    # dInew = func(np.log10(nu))
+    #
+    # return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy+Acib_sz*dInew*1.e26).astype(ndp)
+
+def cib_rad_old(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
+
+    X = hplanck * nu / (kboltz * Tcib)
+
     return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
 def co_rad(nu, Aco=1.):
-    x = np.load('templates/co_arrays.npy').astype(ndp)
+    x = np.load('/Users/asabyr/Documents/SecondYearProject/sd_foregrounds/templates/co_arrays.npy').astype(ndp)
     freqs = x[0]
     co = x[1]
     fs = interpolate.interp1d(log10(freqs), log10(co), bounds_error=False, fill_value="extrapolate")
     return (Aco * 10. ** fs(log10(nu)) * jy).astype(ndp)
-
 
 def dust_moments(nu, Adm=3.2e-4, alphadm=1.22, Tdm=21.1, omega1=0.09):
     X = hplanck * nu / (kboltz * Tdm)
@@ -53,5 +69,3 @@ def dust_moments(nu, Adm=3.2e-4, alphadm=1.22, Tdm=21.1, omega1=0.09):
     Y1 = X * np.exp(X) / (np.exp(X) - 1.)
     zeroth = Adm * (nu/nu0)**alphadm * nu**3 / (np.exp(X) - 1.)
     return zeroth * (1. + 0.5 * omega1 * lnnu**2) * 1.e-26
-
-

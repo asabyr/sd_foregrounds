@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import interpolate
 
-from other_foregrounds import radiance_to_krj as r2k
+#from other_foregrounds import radiance_to_krj as r2k
 
 PIXIE_freq_min = 37.5e9 #central frequency of lowest channel (lower bound is 30 GHz)
 PIXIE_freq_max = 6.0225e12 #central frequency of highest channel (chose this to get 400 total channels)
@@ -149,7 +149,7 @@ def kDeltaI_reltSZ_2param_yweight(freqs, y_tot=1.77e-6, kT_yweight=1.245):
 # recombination lines from template
 # file is in GHz and W / m^2 Hz sr
 def recombination(freqs, scale=1.0):
-    rdata = np.loadtxt('templates/recombination/total_spectrum_f.dat')
+    rdata = np.loadtxt('/Users/asabyr/Documents/SecondYearProject/sd_foregrounds/templates/recombination/total_spectrum_f.dat')
     fs = rdata[:,0] * 1e9
     recomb = rdata[:,1]
     template = interpolate.interp1d(np.log10(fs), np.log10(recomb), fill_value=np.log10(1e-30), bounds_error=False)
@@ -157,4 +157,3 @@ def recombination(freqs, scale=1.0):
 
 def krecombination(freqs, scale=1.0):
     return r2k(freqs, recombination(freqs, scale))
-
