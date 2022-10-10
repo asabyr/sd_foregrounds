@@ -1,11 +1,14 @@
 import inspect
 import numpy as np
 from scipy import interpolate
-
+import os
 import spectral_distortions as sd
 import foregrounds as fg
 ndp = np.float64
-
+this_dir=os.getcwd()
+print(this_dir)
+this_dir=os.path.dirname(os.path.abspath(__file__))
+print(this_dir)
 
 class FisherEstimation:
     def __init__(self, fmin=7.5e9, fmax=3.e12, fstep=15.e9, \
@@ -24,7 +27,7 @@ class FisherEstimation:
 
         self.setup()
         self.set_signals()
-        
+
         if doCO:
             self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
         else:
@@ -47,7 +50,7 @@ class FisherEstimation:
         for k in range(N):
             normF[k, k] = 1. / F[k, k]
         self.cov = ((np.mat(normF, dtype=ndp) * np.mat(F, dtype=ndp)).I * np.mat(normF, dtype=ndp)).astype(ndp)
-        #self.cov = np.mat(F, dtype=ndp).I 
+        #self.cov = np.mat(F, dtype=ndp).I
         self.F = F
         self.get_errors()
         return
@@ -68,7 +71,7 @@ class FisherEstimation:
     def set_signals(self, fncs=None):
         if fncs is None:
             fncs = [sd.DeltaI_mu, sd.DeltaI_reltSZ_2param_yweight, sd.DeltaI_DeltaT,
-                    fg.thermal_dust_rad, fg.cib_rad, fg.jens_freefree_rad, 
+                    fg.thermal_dust_rad, fg.cib_rad, fg.jens_freefree_rad,
                     fg.jens_synch_rad, fg.spinning_dust, fg.co_rad]
         self.signals = fncs
         self.args, self.p0, self.argvals = self.get_function_args()
@@ -84,15 +87,15 @@ class FisherEstimation:
 
     def band_averaging_frequencies(self):
         #freqs = np.arange(self.fmin + self.bandpass_step/2., self.fmax + self.fstep, self.bandpass_step, dtype=ndp)
-        freqs = np.arange(self.fmin + self.bandpass_step/2., self.fmax + self.bandpass_step + self.fmin, self.bandpass_step, dtype=ndp)
+        freqs = np.arange(self.fmin + self.bandpass_step/2., self.fmax + self.bandpass_step/2. + self.fmin, self.bandpass_step, dtype=ndp)
         binstep = int(self.fstep / self.bandpass_step)
-        freqs = freqs[self.drop * binstep : (len(freqs) / binstep) * binstep]
-        centerfreqs = freqs.reshape((len(freqs) / binstep, binstep)).mean(axis=1)
+        freqs = freqs[self.drop * binstep : int((len(freqs) / binstep) * binstep)]
+        centerfreqs = freqs.reshape((int(len(freqs) / binstep), binstep)).mean(axis=1)
         #self.windowfnc = np.sinc((np.arange(binstep)-(binstep/2-1))/float(binstep))
         return freqs, centerfreqs, binstep
 
     def pixie_sensitivity(self):
-        sdata = np.loadtxt('templates/Sensitivities.dat', dtype=ndp)
+        sdata = np.loadtxt(this_dir+'/templates/Sensitivities.dat', dtype=ndp)
         fs = sdata[:, 0] * 1e9
         sens = sdata[:, 1]
         template = interpolate.interp1d(np.log10(fs), np.log10(sens), bounds_error=False, fill_value="extrapolate")
@@ -100,7 +103,7 @@ class FisherEstimation:
         if self.bandpass:
             N = len(self.band_frequencies)
             noise = 10. ** template(np.log10(self.band_frequencies)) / np.sqrt(skysr) * np.sqrt(15. / self.duration) * self.mult * 1.e26
-            return (noise.reshape(( N / self.binstep, self.binstep)).mean(axis=1)).astype(ndp)
+            return (noise.reshape((int( N / self.binstep), self.binstep)).mean(axis=1)).astype(ndp)
         else:
             return (10. ** template(np.log10(self.center_frequencies)) / np.sqrt(skysr) * np.sqrt(15. / self.duration) * self.mult * 1.e26).astype(ndp)
 
@@ -144,13 +147,12 @@ class FisherEstimation:
         for fnc in self.signals:
             argsp = inspect.getargspec(fnc)
             args = argsp[0][1:]
-            if len(kwarg) and kwarg.keys()[0] in args:
+            if len(kwarg) and list(kwarg.keys())[0] in args:
                 model += fnc(frequencies, **kwarg)
         if self.bandpass:
-            #rmodel = model.reshape((N / self.binstep, self.binstep)) 
+            #rmodel = model.reshape((N / self.binstep, self.binstep))
             #total = rmodel * self.windowfnc
-            return model.reshape((N / self.binstep, self.binstep)).mean(axis=1)
+            return model.reshape((int(N / self.binstep), self.binstep)).mean(axis=1)
             #return total.mean(axis=1)
         else:
             return model
-

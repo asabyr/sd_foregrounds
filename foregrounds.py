@@ -1,12 +1,15 @@
 import numpy as np
 from numpy import log10
 from scipy import interpolate
+import os
 
 hplanck = 6.626070150e-34  # MKS
 kboltz = 1.380649e-23  # MKS
 #jy = 1.e-26
 jy = 1.
 ndp = np.float64
+this_dir=os.path.dirname(os.path.abspath(__file__))
+print(this_dir)
 
 def jens_synch_rad(nu, As=288., alps=-0.82, w2s=0.2):
     nu0s = 100.e9
@@ -24,7 +27,7 @@ def jens_freefree_rad(nu, EM=300.):
     return (EM * gff * jy).astype(ndp)
 
 def spinning_dust(nu, Asd=1.):
-    ame_file = np.load('templates/ame.npy').astype(ndp)
+    ame_file = np.load(this_dir+'/templates/ame.npy').astype(ndp)
     ame_nu = ame_file[0]
     ame_I = ame_file[1]
     fsd = interpolate.interp1d(log10(ame_nu), log10(ame_I), bounds_error=False, fill_value="extrapolate")
@@ -39,7 +42,7 @@ def cib_rad(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
     return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
 def co_rad(nu, Aco=1.):
-    x = np.load('templates/co_arrays.npy').astype(ndp)
+    x = np.load(this_dir+'/templates/co_arrays.npy').astype(ndp)
     freqs = x[0]
     co = x[1]
     fs = interpolate.interp1d(log10(freqs), log10(co), bounds_error=False, fill_value="extrapolate")
@@ -53,5 +56,3 @@ def dust_moments(nu, Adm=3.2e-4, alphadm=1.22, Tdm=21.1, omega1=0.09):
     Y1 = X * np.exp(X) / (np.exp(X) - 1.)
     zeroth = Adm * (nu/nu0)**alphadm * nu**3 / (np.exp(X) - 1.)
     return zeroth * (1. + 0.5 * omega1 * lnnu**2) * 1.e-26
-
-
