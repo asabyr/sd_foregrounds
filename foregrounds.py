@@ -15,6 +15,25 @@ def jens_synch_rad(nu, As=288., alps=-0.82, w2s=0.2):
     nu0s = 100.e9
     return (As * (nu / nu0s) ** alps * (1. + 0.5 * w2s * np.log(nu / nu0s) ** 2) * jy).astype(ndp)
 
+def jens_synch_rad_fixed_curv(nu, As=288., alps=-0.82):
+    w2s=0.2
+    nu0s = 100.e9
+    return (As * (nu / nu0s) ** alps * (1. + 0.5 * w2s * np.log(nu / nu0s) ** 2) * jy).astype(ndp)
+
+def jens_synch_rad_no_curv(nu, As=288., alps=-0.82):
+    nu0s = 100.e9
+    return (As * (nu / nu0s) ** alps * jy).astype(ndp)
+
+def jens_synch_rad_no_curv_fixed_index_m3pt1(nu, As=288.):
+    alps=-3.1
+    return (As * (nu / nu0s) ** alps * jy).astype(ndp)
+
+def jens_synch_rad_fixed_curv_and_index(nu, As=288.):
+    alps=-0.82
+    w2s=0.2
+    nu0s = 100.e9
+    return (As * (nu / nu0s) ** alps * (1. + 0.5 * w2s * np.log(nu / nu0s) ** 2) * jy).astype(ndp)
+
 def jens_synch_rad1(nu, As=288., alps=-0.82):
     nu0s = 100.e9
     return (As * (nu / nu0s) ** alps * jy).astype(ndp)
@@ -37,7 +56,45 @@ def thermal_dust_rad(nu, Ad=1.36e6, Bd=1.53, Td=21.):
     X = hplanck * nu / (kboltz * Td)
     return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
+def thermal_dust_rad_fixed_beta_1pt6_Td_19pt6(nu, Ad=1.36e6):
+    Td=19.6
+    Bd=1.6
+    X = hplanck * nu / (kboltz * Td)
+    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def thermal_dust_rad_fixed_beta(nu, Ad=1.36e6,Td=21.):
+
+    Bd=1.53
+    X = hplanck * nu / (kboltz * Td)
+    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def thermal_dust_rad_fixed_Td(nu, Ad=1.36e6, Bd=1.53):
+    Td=21.
+    X = hplanck * nu / (kboltz * Td)
+    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def thermal_dust_rad_fixed_Td_19pt6(nu, Ad=1.36e6, Bd=1.53):
+    Td=19.6
+    X = hplanck * nu / (kboltz * Td)
+    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
 def cib_rad(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
+    X = hplanck * nu / (kboltz * Tcib)
+    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def cib_rad_fixed_beta(nu, Acib=3.46e5,Tcib=18.8):
+    Bcib=0.86,
+    X = hplanck * nu / (kboltz * Tcib)
+    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def cib_rad_fixed_Td(nu, Acib=3.46e5, Bcib=0.86):
+    Tcib=18.8
+    X = hplanck * nu / (kboltz * Tcib)
+    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def cib_rad_fixed_beta_and_Td(nu, Acib=3.46e5):
+    Bcib=0.86
+    Tcib=18.8
     X = hplanck * nu / (kboltz * Tcib)
     return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
