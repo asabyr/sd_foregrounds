@@ -136,6 +136,28 @@ def dust_moments_omega22_omega23_omega33(nu, Adm=1.36e6, alphadm=1.53, Tdm=21., 
     zeroth = Adm * X**alphadm * X**3 / (np.exp(X) - 1.)
     return zeroth * (1. + 0.5 * omega22 * lnnu**2+omega23*lnnu*Y1+0.5*omega33*Y2)
 
+def dust_moments_omega22_omega23_omega33_fixedTd_betad(nu, Adm=1.36e6, omega22=0.1, omega23=0.1,omega33=0.1):
+    alphadm=1.6
+    Tdm=19.6
+    X = hplanck * nu / (kboltz * Tdm)
+    nu0 = (kboltz * Tdm)/hplanck
+    lnnu = np.log(nu/nu0)
+    Y1 = X * np.exp(X) / (np.exp(X) - 1.)
+    Y2 = Y1*X*np.cosh(X/2.)/np.sinh(X/2.)
+    zeroth = Adm * X**alphadm * X**3 / (np.exp(X) - 1.)
+
+    return zeroth * (1. + 0.5 * omega22 * lnnu**2+omega23*lnnu*Y1+0.5*omega33*Y2)
+
+def dust_moments_omega22_omega23_omega33_fixednu0(nu, Adm=1.36e6, alphadm=1.53, Tdm=21., omega22=0.1, omega23=0.1,omega33=0.1):
+    X = hplanck * nu / (kboltz * Tdm)
+    Tfix=19.6
+    nu0 = (kboltz * Tfix)/hplanck
+    lnnu = np.log(nu/nu0)
+    Y1 = X * np.exp(X) / (np.exp(X) - 1.)
+    Y2 = Y1*X*np.cosh(X/2.)/np.sinh(X/2.)
+    zeroth = Adm * X**alphadm * X**3 / (np.exp(X) - 1.)
+    return zeroth * (1. + 0.5 * omega22 * lnnu**2+omega23*lnnu*Y1+0.5*omega33*Y2)
+
 def dust_moments_2nd_order(nu, Adm=1.36e6, alphadm=1.53, Tdm=21.,omega22=0.1, omega23=0.1,omega33=0.1,omega222=0.1, omega223=0.1, omega233=0.1, omega333=0.1):
     X = hplanck * nu / (kboltz * Tdm)
     nu0 = kboltz *Tdm/hplanck
