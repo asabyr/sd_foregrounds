@@ -13,7 +13,10 @@ print(this_dir)
 class FisherEstimation:
     def __init__(self, fmin=7.5e9, fmax=3.e12, fstep=15.e9, \
                  duration=86.4, bandpass=True, fsky=0.7, mult=1., \
-                 priors={'alps':0.1, 'As':0.1}, drop=0, doCO=False):
+                 priors={'alps':0.1, 'As':0.1}, drop=0, doCO=False, instrument='firas', pixel_fsky=0.,
+                 fname='monopole_firas_freq_data_healpix_orthstipes_True.pkl',sky_frac=60,
+                 firas_method='invvar', low_or_high='lowf', highf_thresh=1890, lowf_mask=-1, highf_mask=3):
+
         self.fmin = fmin
         self.fmax = fmax
         self.bandpass_step = 1.e8
@@ -24,6 +27,16 @@ class FisherEstimation:
         self.mult = mult
         self.priors = priors
         self.drop = drop
+        self.instrument=instrument
+        self.pixel_fsky=pixel_fsky
+
+        self.fname=fname
+        self.sky_frac=sky_frac
+        self.method=firas_method
+        self.low_or_high=low_or_high
+        self.highf_thresh=highf_thresh
+        self.lowf_mask=lowf_mask
+        self.highf_mask=highf_mask
 
         self.setup()
         self.set_signals()
@@ -35,8 +48,12 @@ class FisherEstimation:
         return
 
     def setup(self):
-        self.set_frequencies()
-        self.noise = self.pixie_sensitivity()
+
+        if self.instrument=='pixie':
+            self.noise = self.pixie_sensitivity()
+            self.set_frequencies()
+        elif self.instrument=='firas':
+            self.center_frequencies, self.noise=self.firas_sensitivity()
         return
 
     def run_fisher_calculation(self):
@@ -107,6 +124,52 @@ class FisherEstimation:
         else:
             return (10. ** template(np.log10(self.center_frequencies)) / np.sqrt(skysr) * np.sqrt(15. / self.duration) * self.mult * 1.e26).astype(ndp)
 
+    def firas_sensitivity(self):
+
+        data=np.load('/Users/asabyr/Documents/firas_distortions/data/'+self.fname, allow_pickle=True)
+
+        if self.low_or_high=="both":
+            freqs_low=np.array(data['lowf']['freqs'])[:self.lowf_mask]*1.e9
+            # intensity_low=np.array(data['lowf'][self.sky_frac][f"monopole_{self.method}"])*1.e6
+            err_low=np.array(data['lowf'][self.sky_frac][f"error_{self.method}"])[:self.lowf_mask]*1.e6
+
+
+
+
+            # intensity=np.array(data[self.low_or_high][self.sky_frac][f"monopole_{self.method}"])[high_freq_mask]*1.e6
+
+            freqs_high_orig=np.array(data['high']['freqs'])*1.e9
+            high_freq_mask=np.where(freqs_high_orig<self.highf_thresh*1.e9)[0]
+            freqs_high=freqs_high_orig[high_freq_mask]
+            # intensity_high=np.array(data['high'][self.sky_frac][f"monopole_{self.method}"])[high_freq_mask]*1.e6
+            err_high=np.array(data['high'][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
+
+            freqs=np.concatenate((freqs_low,freqs_high[self.highf_mask:]))
+            err=np.concatenate((err_low,err_high[self.highf_mask:]))
+
+        elif self.low_or_high=="lowf":
+
+            freqs=np.array(data[self.low_or_high]['freqs'])*1.e9
+            # intensity=np.array(data[self.low_or_high][self.sky_frac][f"monopole_{self.method}"])*1.e6
+            err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])*1.e6
+
+        elif self.low_or_high=="high":
+
+            freqs_orig=np.array(data[self.low_or_high]['freqs'])*1.e9
+            high_freq_mask=np.where(freqs_orig<self.highf_thresh*1.e9)[0]
+            freqs=freqs_orig[high_freq_mask]
+
+            # intensity=np.array(data[self.low_or_high][self.sky_frac][f"monopole_{self.method}"])[high_freq_mask]*1.e6
+            err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
+
+        if self.pixel_fsky>0:
+            # skysr = 4. * np.pi * (180. / np.pi) ** 2 * self.pixel_fsky
+            return freqs, err/np.sqrt(self.pixel_fsky)
+
+        return freqs, err
+
+
+
     def get_function_args(self):
         targs = []
         tp0 = []
@@ -129,6 +192,7 @@ class FisherEstimation:
                 dfdpj /= self.noise
                 #F[i, j] = np.dot(dfdpi, dfdpj)
                 F[i, j] = np.dot(dfdpi[self.mask], dfdpj[self.mask])
+
         return F
 
     def signal_derivative(self, x, x0):
