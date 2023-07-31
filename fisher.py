@@ -6,16 +6,22 @@ import spectral_distortions as sd
 import foregrounds as fg
 ndp = np.float64
 this_dir=os.getcwd()
-print(this_dir)
 this_dir=os.path.dirname(os.path.abspath(__file__))
-print(this_dir)
+import sys
+sys.path.append("path/to/firas_distortions/code/")
+from read_data import remove_lines
+N_pixels=3072.0
+C_extra_factor=1.7
 
 class FisherEstimation:
     def __init__(self, fmin=7.5e9, fmax=3.e12, fstep=15.e9, \
                  duration=86.4, bandpass=True, fsky=0.7, mult=1., \
-                 priors={'alps':0.1, 'As':0.1}, drop=0, doCO=False, instrument='firas', pixel_fsky=0.,
-                 fname='monopole_firas_freq_data_healpix_orthstipes_True.pkl',sky_frac=60,
-                 firas_method='invvar', low_or_high='lowf', highf_thresh=1890, lowf_mask=-1, highf_mask=3):
+                 priors={'alps':0.1, 'As':0.1}, drop=0, doCO=False, \
+                #firas project additions
+                instrument='firas', pixel_fsky=0.,
+                fname='monopole_firas_freq_data_healpix_orthstipes_True_20230509.pkl',file_type='monopole', 
+                sky_frac=20, firas_method='invvar', low_or_high='lowf', highf_thresh=1890, 
+                lowf_mask=-1, highf_mask=3, which_noise='tot', remove_lines=False):
 
         self.fmin = fmin
         self.fmax = fmax
@@ -27,9 +33,10 @@ class FisherEstimation:
         self.mult = mult
         self.priors = priors
         self.drop = drop
+        
+        #firas project additions
         self.instrument=instrument
         self.pixel_fsky=pixel_fsky
-
         self.fname=fname
         self.sky_frac=sky_frac
         self.method=firas_method
@@ -37,6 +44,9 @@ class FisherEstimation:
         self.highf_thresh=highf_thresh
         self.lowf_mask=lowf_mask
         self.highf_mask=highf_mask
+        self.file_type=file_type
+        self.which_noise=which_noise
+        self.remove_lines=remove_lines
 
         self.setup()
         self.set_signals()
@@ -92,6 +102,7 @@ class FisherEstimation:
                     fg.jens_synch_rad, fg.spinning_dust, fg.co_rad]
         self.signals = fncs
         self.args, self.p0, self.argvals = self.get_function_args()
+        print(self.p0)
         return
 
     def set_frequencies(self):
@@ -126,49 +137,96 @@ class FisherEstimation:
 
     def firas_sensitivity(self):
 
-        data=np.load('/Users/asabyr/Documents/firas_distortions/data/'+self.fname, allow_pickle=True)
+        #using monopole errors
+        if self.file_type=='monopole':
+            
+            data=np.load('/Users/asabyr/Documents/firas_distortions/data/'+self.fname, allow_pickle=True)
+            
+            if self.low_or_high=="both":
+                
+                freqs_low=np.array(data['lowf']['freqs'])[:self.lowf_mask]*1.e9
+                err_low=np.array(data['lowf'][self.sky_frac][f"error_{self.method}"])[:self.lowf_mask]*1.e6
+                
+                freqs_high_orig=np.array(data['high']['freqs'])*1.e9
+                high_freq_mask=np.where(freqs_high_orig<self.highf_thresh*1.e9)[0]
+                freqs_high=freqs_high_orig[high_freq_mask]
+                err_high=np.array(data['high'][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
+                
+                freqs=np.concatenate((freqs_low,freqs_high[self.highf_mask:]))
+                err=np.concatenate((err_low,err_high[self.highf_mask:]))
 
-        if self.low_or_high=="both":
-            freqs_low=np.array(data['lowf']['freqs'])[:self.lowf_mask]*1.e9
-            # intensity_low=np.array(data['lowf'][self.sky_frac][f"monopole_{self.method}"])*1.e6
-            err_low=np.array(data['lowf'][self.sky_frac][f"error_{self.method}"])[:self.lowf_mask]*1.e6
+            elif self.low_or_high=="lowf":
 
+                freqs=np.array(data[self.low_or_high]['freqs'])*1.e9
+                err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])*1.e6
 
+            elif self.low_or_high=="high":
 
+                freqs_orig=np.array(data[self.low_or_high]['freqs'])*1.e9
+                high_freq_mask=np.where(freqs_orig<self.highf_thresh*1.e9)[0]
+                freqs=freqs_orig[high_freq_mask]
+                err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
 
-            # intensity=np.array(data[self.low_or_high][self.sky_frac][f"monopole_{self.method}"])[high_freq_mask]*1.e6
+            if self.pixel_fsky>0:
+                return freqs, err/np.sqrt(self.pixel_fsky)
+            
+            if self.remove_lines==True:
+                outliers=remove_lines(freqs,1.0)
+                freqs=np.delete(freqs, outliers)
+                err=np.delete(err, outliers)
 
-            freqs_high_orig=np.array(data['high']['freqs'])*1.e9
-            high_freq_mask=np.where(freqs_high_orig<self.highf_thresh*1.e9)[0]
-            freqs_high=freqs_high_orig[high_freq_mask]
-            # intensity_high=np.array(data['high'][self.sky_frac][f"monopole_{self.method}"])[high_freq_mask]*1.e6
-            err_high=np.array(data['high'][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
+            return freqs, err
+        
+        elif self.file_type=='noise':
 
-            freqs=np.concatenate((freqs_low,freqs_high[self.highf_mask:]))
-            err=np.concatenate((err_low,err_high[self.highf_mask:]))
+            freqs, tot, C, beta, JCJ, PEP, PUP, PTP=np.loadtxt('/Users/asabyr/Documents/firas_distortions/data/'+self.fname, unpack=True)
 
-        elif self.low_or_high=="lowf":
+            if self.low_or_high=='lowf':
+                max_freq=640
+                mask_ind=np.where(freqs<max_freq)[0]
+            else:
+                mask_ind=np.where(freqs<self.highf_thresh)[0]
 
-            freqs=np.array(data[self.low_or_high]['freqs'])*1.e9
-            # intensity=np.array(data[self.low_or_high][self.sky_frac][f"monopole_{self.method}"])*1.e6
-            err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])*1.e6
+            err=np.zeros(len(freqs))
 
-        elif self.low_or_high=="high":
+            if self.which_noise=='tot':
+                err=np.copy(np.abs(tot))/np.sqrt(N_pixels)
 
-            freqs_orig=np.array(data[self.low_or_high]['freqs'])*1.e9
-            high_freq_mask=np.where(freqs_orig<self.highf_thresh*1.e9)[0]
-            freqs=freqs_orig[high_freq_mask]
+            if 'C' in self.which_noise:
+                #print("including C")
+                skysr = 4. * np.pi * (180. / np.pi) ** 2 * self.fsky
+                err+=np.abs(C)/np.sqrt(skysr)*C_extra_factor
 
-            # intensity=np.array(data[self.low_or_high][self.sky_frac][f"monopole_{self.method}"])[high_freq_mask]*1.e6
-            err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
+            if 'beta' in self.which_noise:
+                #print("including beta")
+                err+=np.abs(beta)/np.sqrt(N_pixels)
 
-        if self.pixel_fsky>0:
-            # skysr = 4. * np.pi * (180. / np.pi) ** 2 * self.pixel_fsky
-            return freqs, err/np.sqrt(self.pixel_fsky)
+            if 'JCJ' in self.which_noise:
+                #print("including JCJ")
+                err+=np.abs(JCJ)/np.sqrt(N_pixels)
 
-        return freqs, err
+            if 'PEP' in self.which_noise:
+                #print("including PEP")
+                err+=np.abs(PEP)/np.sqrt(N_pixels)
 
+            if 'PUP' in self.which_noise:
+                #print("including PUP")
+                err+=np.abs(PUP)/np.sqrt(N_pixels)
 
+            if 'PTP' in self.which_noise:
+                #print("including PTP")
+                err+=np.abs(PTP)/np.sqrt(N_pixels)
+            
+            masked_freqs=freqs[mask_ind]*1e9
+            masked_err=err[mask_ind]*1.e6
+            
+            if self.remove_lines==True:
+
+                outliers=remove_lines(masked_freqs,1.0)
+                masked_freqs=np.delete(masked_freqs, outliers)
+                masked_err=np.delete(masked_err, outliers)
+
+            return masked_freqs, masked_err
 
     def get_function_args(self):
         targs = []
