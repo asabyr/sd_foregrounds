@@ -1,8 +1,8 @@
 import numpy as np
 
-### See components for a better description of the signals. 
+### See components for a better description of the signals.
 
-TCMB = 2.725 #Kelvin
+TCMB = 2.7255 #Kelvin
 hplanck = 6.626070150e-34  # MKS
 kboltz = 1.380649e-23  # MKS
 clight=299792458.0 #MKS
@@ -44,4 +44,3 @@ def blackbody(nu, DT=1.e-3):
     bbT = 2.0 * hplanck * (nu * nu * nu) / (clight ** 2) * (1.0 / (np.exp(X) - 1.0))
     bbTcmb = 2.0 * hplanck * (nu * nu * nu) / (clight ** 2) * (1.0 / (np.exp(Xcmb) - 1.0))
     return ( (bbT - bbTcmb)*jy ).astype(ndp)
-
