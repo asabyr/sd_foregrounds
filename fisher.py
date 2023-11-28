@@ -8,8 +8,13 @@ ndp = np.float64
 this_dir=os.getcwd()
 this_dir=os.path.dirname(os.path.abspath(__file__))
 import sys
-sys.path.append("path/to/firas_distortions/code/")
-from read_data import remove_lines
+print(this_dir)
+firas_code_dir=this_dir.replace('software/sd_foregrounds','firas_distortions/code/')
+print(firas_code_dir)
+sys.path.append(firas_code_dir)
+from read_data import remove_lines, prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
+import copy
+
 N_pixels=3072.0
 C_extra_factor=1.7
 
@@ -18,10 +23,21 @@ class FisherEstimation:
                  duration=86.4, bandpass=True, fsky=0.7, mult=1., \
                  priors={'alps':0.1, 'As':0.1}, drop=0, doCO=False, \
                 #firas project additions
-                instrument='firas', pixel_fsky=0.,
-                fname='monopole_firas_freq_data_healpix_orthstipes_True_20230509.pkl',file_type='monopole', 
-                sky_frac=20, firas_method='invvar', low_or_high='lowf', highf_thresh=1890, 
-                lowf_mask=-1, highf_mask=3, which_noise='tot', remove_lines=False):
+                instrument='firas', 
+                fname='monopole_firas_freq_data_healpix_orthstipes_True_20230509.pkl', #monopole file, assumes it is in FIRAS code directory in /data
+                file_type='monopole', # monopole or noise (uses monopole or covariance file)
+                firas_method='invvar', # monopole method
+                low_or_high='lowf', #which frequencies to use
+                highf_thresh=1890, #if both or highf, then indicate upper bound
+                lowf_mask=[2,-1], #which channels to throw out in lowf
+                highf_mask=3, #which channels to throw out in highf
+                which_noise='tot', #which part of covariance to use 'C','beta','JCJ', 'PEP','PUP','PTP'
+                remove_lines=True, #remove channels near emission lines
+                arg_dict={}): #sky model parameters 
+                #!!!important!!
+                # arg_dict has to be in the order that sky model functions are given to fisher
+                # (or in the order of the default "fncs" array if no functions are specified)
+                # !!!important!!
 
         self.fmin = fmin
         self.fmax = fmax
@@ -29,16 +45,14 @@ class FisherEstimation:
         self.fstep = fstep
         self.duration = duration
         self.bandpass = bandpass
-        self.fsky = fsky
+        self.fsky = fsky #also FIRAS option
         self.mult = mult
         self.priors = priors
         self.drop = drop
-        
+
         #firas project additions
         self.instrument=instrument
-        self.pixel_fsky=pixel_fsky
         self.fname=fname
-        self.sky_frac=sky_frac
         self.method=firas_method
         self.low_or_high=low_or_high
         self.highf_thresh=highf_thresh
@@ -47,14 +61,17 @@ class FisherEstimation:
         self.file_type=file_type
         self.which_noise=which_noise
         self.remove_lines=remove_lines
+        self.arg_dict=arg_dict
 
         self.setup()
         self.set_signals()
 
-        if doCO:
-            self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
-        else:
-            self.mask = np.ones(len(self.center_frequencies), bool)
+        if instrument=='pixie':
+            if doCO:
+                self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
+            else:
+                self.mask = np.ones(len(self.center_frequencies), bool)
+
         return
 
     def setup(self):
@@ -63,12 +80,35 @@ class FisherEstimation:
             self.noise = self.pixie_sensitivity()
             self.set_frequencies()
         elif self.instrument=='firas':
-            self.center_frequencies, self.noise=self.firas_sensitivity()
+            if self.low_or_high=="both":
+                self.center_frequencies_low, self.noise_inv_low,self.center_frequencies_high, self.noise_inv_high =self.firas_sensitivity()
+            else:
+                self.center_frequencies, self.noise_inv=self.firas_sensitivity()
+        else:
+            sys.exit("pick 'firas' or 'pixie' as instrument")
         return
 
     def run_fisher_calculation(self):
+
         N = len(self.args)
-        F = self.calculate_fisher_matrix()
+        
+        #calculate Fisher for two frequency ranges
+        if self.instrument=='firas' and self.low_or_high=="both":
+            
+            self.center_frequencies=copy.deepcopy(self.center_frequencies_low)
+            self.noise_inv=copy.deepcopy(self.noise_inv_low)
+            Flow = self.calculate_fisher_matrix()
+
+            self.center_frequencies=copy.deepcopy(self.center_frequencies_high)
+            self.noise_inv=copy.deepcopy(self.noise_inv_high)
+            Fhigh = self.calculate_fisher_matrix()
+            
+            F=Flow+Fhigh
+        #pixie or just low frequencies for FIRAS
+        else:
+            F = self.calculate_fisher_matrix()
+        
+        #take into account Gaussian priors & invert Fisher
         for k in self.priors.keys():
             if k in self.args and self.priors[k] > 0:
                 kindex = np.where(self.args == k)[0][0]
@@ -77,9 +117,9 @@ class FisherEstimation:
         for k in range(N):
             normF[k, k] = 1. / F[k, k]
         self.cov = ((np.mat(normF, dtype=ndp) * np.mat(F, dtype=ndp)).I * np.mat(normF, dtype=ndp)).astype(ndp)
-        #self.cov = np.mat(F, dtype=ndp).I
         self.F = F
         self.get_errors()
+
         return
 
     def get_errors(self):
@@ -101,8 +141,14 @@ class FisherEstimation:
                     fg.thermal_dust_rad, fg.cib_rad, fg.jens_freefree_rad,
                     fg.jens_synch_rad, fg.spinning_dust, fg.co_rad]
         self.signals = fncs
-        self.args, self.p0, self.argvals = self.get_function_args()
-        print(self.p0)
+        
+        #fiducial
+        if len(self.arg_dict)==0:
+            self.args, self.p0, self.argvals = self.get_function_args()
+        #if parameter dictionary was specified 
+        else:
+            self.args, self.p0, self.argvals = self.get_function_args_custom()
+        
         return
 
     def set_frequencies(self):
@@ -139,51 +185,28 @@ class FisherEstimation:
 
         #using monopole errors
         if self.file_type=='monopole':
-            
-            data=np.load('/Users/asabyr/Documents/firas_distortions/data/'+self.fname, allow_pickle=True)
-            
+            data=np.load(this_dir+'/data/'+self.fname, allow_pickle=True)
             if self.low_or_high=="both":
-                
-                freqs_low=np.array(data['lowf']['freqs'])[:self.lowf_mask]*1.e9
-                err_low=np.array(data['lowf'][self.sky_frac][f"error_{self.method}"])[:self.lowf_mask]*1.e6
-                
-                freqs_high_orig=np.array(data['high']['freqs'])*1.e9
-                high_freq_mask=np.where(freqs_high_orig<self.highf_thresh*1.e9)[0]
-                freqs_high=freqs_high_orig[high_freq_mask]
-                err_high=np.array(data['high'][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
-                
-                freqs=np.concatenate((freqs_low,freqs_high[self.highf_mask:]))
-                err=np.concatenate((err_low,err_high[self.highf_mask:]))
+
+                data_dict_high=prepare_data_highf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, cutoff_freq=self.highf_thresh, ind_mask=self.highf_mask)
+                data_dict_low=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+
+                return data_dict_low['freqs'], data_dict_low['cov_inv'], data_dict_high['freqs'], data_dict_high['cov_inv']
 
             elif self.low_or_high=="lowf":
 
-                freqs=np.array(data[self.low_or_high]['freqs'])*1.e9
-                err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])*1.e6
+                data_dict=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
 
-            elif self.low_or_high=="high":
+                return data_dict['freqs'], data_dict['cov_inv']
 
-                freqs_orig=np.array(data[self.low_or_high]['freqs'])*1.e9
-                high_freq_mask=np.where(freqs_orig<self.highf_thresh*1.e9)[0]
-                freqs=freqs_orig[high_freq_mask]
-                err=np.array(data[self.low_or_high][self.sky_frac][f"error_{self.method}"])[high_freq_mask]*1.e6
-
-            if self.pixel_fsky>0:
-                return freqs, err/np.sqrt(self.pixel_fsky)
-            
-            if self.remove_lines==True:
-                outliers=remove_lines(freqs,1.0)
-                freqs=np.delete(freqs, outliers)
-                err=np.delete(err, outliers)
-
-            return freqs, err
-        
+        #using covariance file
         elif self.file_type=='noise':
 
-            freqs, tot, C, beta, JCJ, PEP, PUP, PTP=np.loadtxt('/Users/asabyr/Documents/firas_distortions/data/'+self.fname, unpack=True)
+            freqs, tot, C, beta, JCJ, PEP, PUP, PTP=np.loadtxt(this_dir+'/data/'+self.fname, unpack=True)
 
             if self.low_or_high=='lowf':
                 max_freq=640
-                mask_ind=np.where(freqs<max_freq)[0]
+                mask_ind=np.where(freqs[self.lowf_mask[0]:self.lowf_mask[-1]]<max_freq)[0]
             else:
                 mask_ind=np.where(freqs<self.highf_thresh)[0]
 
@@ -216,10 +239,10 @@ class FisherEstimation:
             if 'PTP' in self.which_noise:
                 #print("including PTP")
                 err+=np.abs(PTP)/np.sqrt(N_pixels)
-            
+
             masked_freqs=freqs[mask_ind]*1e9
             masked_err=err[mask_ind]*1.e6
-            
+
             if self.remove_lines==True:
 
                 outliers=remove_lines(masked_freqs,1.0)
@@ -239,17 +262,44 @@ class FisherEstimation:
             tp0 = np.concatenate([tp0, p0])
         return targs, tp0, dict(zip(targs, tp0))
 
+    #get parameters if specified
+    def get_function_args_custom(self):
+        targs = []
+        tp0 = []
+        for key,value in self.arg_dict.items():
+
+            targs.append(key)
+            tp0.append(value)
+
+        targs=np.array(targs)
+        tp0=np.array(tp0)
+
+        return targs, tp0, dict(zip(targs, tp0))
+
     def calculate_fisher_matrix(self):
-        N = len(self.p0)
-        F = np.zeros([N, N], dtype=ndp)
-        for i in range(N):
-            dfdpi = self.signal_derivative(self.args[i], self.p0[i])
-            dfdpi /= self.noise
-            for j in range(N):
-                dfdpj = self.signal_derivative(self.args[j], self.p0[j])
-                dfdpj /= self.noise
-                #F[i, j] = np.dot(dfdpi, dfdpj)
-                F[i, j] = np.dot(dfdpi[self.mask], dfdpj[self.mask])
+
+        if self.instrument=='firas':
+            #noise is not a diagonal matrix
+            N = len(self.p0)
+            F = np.zeros([N, N], dtype=ndp)
+            for i in range(N):
+                dfdpi = self.signal_derivative(self.args[i], self.p0[i])
+                first_term=np.dot(dfdpi, self.noise_inv)
+                for j in range(N):
+                    dfdpj = self.signal_derivative(self.args[j], self.p0[j])
+                    F[i, j] = np.dot(first_term, dfdpj)
+
+        elif self.instrument=='pixie':
+            N = len(self.p0)
+            F = np.zeros([N, N], dtype=ndp)
+            for i in range(N):
+                dfdpi = self.signal_derivative(self.args[i], self.p0[i])
+                dfdpi /= self.noise
+                for j in range(N):
+                    dfdpj = self.signal_derivative(self.args[j], self.p0[j])
+                    dfdpj /= self.noise
+                    #F[i, j] = np.dot(dfdpi, dfdpj)
+                    F[i, j] = np.dot(dfdpi[self.mask], dfdpj[self.mask])
 
         return F
 
@@ -260,10 +310,12 @@ class FisherEstimation:
         return deriv
 
     def measure_signal(self, **kwarg):
+
         if self.bandpass:
             frequencies = self.band_frequencies
         else:
             frequencies = self.center_frequencies
+
         N = len(frequencies)
         model = np.zeros(N, dtype=ndp)
         for fnc in self.signals:
