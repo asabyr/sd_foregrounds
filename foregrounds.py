@@ -10,13 +10,17 @@ jy = 1.
 ndp = np.float64
 this_dir=os.path.dirname(os.path.abspath(__file__))
 
+###### new amplitudes because nu0 is fixed #####
+Ad_x=1.36e6
+Ad_353=Ad_x*(353.0e9*hplanck/(kboltz*21.0))**(1.53+3)
+
+Acib_x=3.46e5
+Acib_353=Acib_x*(353.0e9*hplanck/(kboltz*18.8))**(0.86+3)
+###### new amplitudes because nu0 is fixed #####
+
 def jens_synch_rad(nu, As=288., alps=-0.82, w2s=0.2):
     nu0s = 100.e9
     return (As * (nu / nu0s) ** alps * (1. + 0.5 * w2s * np.log(nu / nu0s) ** 2) * jy).astype(ndp)
-
-def jens_synch_rad_no_curv(nu, As=288., alps=-0.82):
-    nu0s = 100.e9
-    return (As * (nu / nu0s) ** alps * jy).astype(ndp)
 
 def jens_freefree_rad(nu, EM=300.):
     Te = 7000.
@@ -32,48 +36,11 @@ def spinning_dust(nu, Asd=1.):
     fsd = interpolate.interp1d(log10(ame_nu), log10(ame_I), bounds_error=False, fill_value="extrapolate")
     return (Asd * 10.**fsd(log10(nu)) * 1.e26).astype(ndp)
 
-def thermal_dust_rad(nu, Ad=1.36e6, Bd=1.53, Td=21.):
+def thermal_dust_rad_old(nu, Ad=1.36e6, Bd=1.53, Td=21.):
     X = hplanck * nu / (kboltz * Td)
     return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
-def thermal_dust_rad_fixed_beta_1pt6_Td_19pt6(nu, Ad=1.36e6):
-    Td=19.6
-    Bd=1.6
-    X = hplanck * nu / (kboltz * Td)
-    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def thermal_dust_rad_fixed_beta(nu, Ad=1.36e6,Td=21.):
-    Bd=1.53
-    X = hplanck * nu / (kboltz * Td)
-    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def thermal_dust_rad_fixed_Td(nu, Ad=1.36e6, Bd=1.53):
-    Td=21.
-    X = hplanck * nu / (kboltz * Td)
-    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def thermal_dust_rad_fixed_Td_19pt6(nu, Ad=1.36e6, Bd=1.53):
-    Td=19.6
-    X = hplanck * nu / (kboltz * Td)
-    return (Ad * X**Bd * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def cib_rad(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
-    X = hplanck * nu / (kboltz * Tcib)
-    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def cib_rad_fixed_beta(nu, Acib=3.46e5,Tcib=18.8):
-    Bcib=0.86,
-    X = hplanck * nu / (kboltz * Tcib)
-    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def cib_rad_fixed_Tcib(nu, Acib=3.46e5, Bcib=0.86):
-    Tcib=18.8
-    X = hplanck * nu / (kboltz * Tcib)
-    return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
-
-def cib_rad_fixed_beta_and_Tcib(nu, Acib=3.46e5):
-    Bcib=0.86
-    Tcib=18.8
+def cib_rad_old(nu, Acib=3.46e5, Bcib=0.86, Tcib=18.8):
     X = hplanck * nu / (kboltz * Tcib)
     return (Acib * X**Bcib * X**3. / (np.exp(X) - 1.0) * jy).astype(ndp)
 
@@ -84,32 +51,61 @@ def co_rad(nu, Aco=1.):
     fs = interpolate.interp1d(log10(freqs), log10(co), bounds_error=False, fill_value="extrapolate")
     return (Aco * 10. ** fs(log10(nu)) * jy).astype(ndp)
 
-def dust_moments_omega2(nu, Ad, Bd, Td, omega2):
-
+###################################### additions ######################################
+def thermal_dust_rad(nu, Ad=Ad_353, Bd=1.53, Td=21.):
     X = hplanck * nu / (kboltz * Td)
-    nu0 = (kboltz * Td)/hplanck
+    nu0=353.0*10.0**9
+    return (Ad * (nu/nu0)**(Bd+3.0) / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def jens_synch_rad_no_curv(nu, As=288., alps=-0.82):
+    nu0s = 100.e9
+    return (As * (nu / nu0s) ** alps * jy).astype(ndp)
+
+def powerlaw(nu, As=300., alps=1):
+    nu0s = 100.e9
+    return As * (nu / nu0s) ** alps
+
+def cib_rad(nu, Acib=Acib_353, Bcib=0.86, Tcib=18.8):
+    X = hplanck * nu / (kboltz * Tcib)
+    nu0=353.0*10.0**9
+    return (Acib * (nu/nu0)**(Bcib+3.0) / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def cib_rad_A17(nu, Acib=Acib_353):
+    Bcib=0.86
+    Tcib=18.8
+    X = hplanck * nu / (kboltz * Tcib)
+    nu0=353.0*10.0**9
+    return (Acib * (nu/nu0)**(Bcib+3.0) / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def cib_rad_MH23(nu, Acib=Acib_353):
+    Bcib=1.59
+    Tcib=11.95
+    X = hplanck * nu / (kboltz * Tcib)
+    nu0=353.0*10.0**9
+    return (Acib * (nu/nu0)**(Bcib+3.0) / (np.exp(X) - 1.0) * jy).astype(ndp)
+
+def dust_moments_omega2_omega3(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
+    Td=21
+    Bd=1.51
+    X = hplanck * nu / (kboltz * Td)
+    nu0 = 353.0e9
     dIdbeta = np.log(nu/nu0)
-    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
-
-    return zeroth * (1. + omega2 * dIdbeta)
-
-def dust_moments_omega3(nu, Ad, Bd, Td, omega3):
-
-    X = hplanck * nu / (kboltz * Td)
     dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
     zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
 
-    return zeroth * (1. + omega3*dIdT)
-
-def dust_moments_first_order(nu, Ad, Bd, Td, omega2, omega3):
-
-    X = hplanck * nu / (kboltz * Td)
-    nu0 = (kboltz * Td)/hplanck
-    dIdbeta = np.log(nu/nu0)
-    dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
-    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
-    
     return zeroth * (1.+omega2*dIdbeta+omega3*dIdT)
+
+def dust_moments_omega2_omega3_omega22(nu, Ad=Ad_353, omega2=0.1, omega3=0.1, omega22=0.1):
+    Td=21
+    Bd=1.51
+    X = hplanck * nu / (kboltz * Td)
+    nu0 = 353.0e9
+    dIdbeta = np.log(nu/nu0)
+    dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
+    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
+
+    return zeroth * (1.+omega2*dIdbeta+omega3*dIdT+omega22*dIdbeta**2.0)
+###################################### additions ######################################
 
 def dust_moments(nu, Adm=3.2e-4, alphadm=1.22, Tdm=21.1, omega1=0.09):
     X = hplanck * nu / (kboltz * Tdm)
