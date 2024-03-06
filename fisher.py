@@ -8,12 +8,12 @@ ndp = np.float64
 this_dir=os.getcwd()
 this_dir=os.path.dirname(os.path.abspath(__file__))
 import sys
-print(this_dir)
 firas_code_dir=this_dir.replace('software/sd_foregrounds','firas_distortions/code/')
-print(firas_code_dir)
 sys.path.append(firas_code_dir)
 from read_data import remove_lines, prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
 import copy
+
+import matplotlib.pyplot as plt
 
 N_pixels=3072.0
 C_extra_factor=1.7
@@ -66,7 +66,7 @@ class FisherEstimation:
         self.setup()
         self.set_signals()
 
-        if instrument=='pixie':
+        if instrument=='pixie' or 'pixie2024':
             if doCO:
                 self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
             else:
@@ -77,8 +77,13 @@ class FisherEstimation:
     def setup(self):
 
         if self.instrument=='pixie':
-            self.noise = self.pixie_sensitivity()
             self.set_frequencies()
+            self.noise = self.pixie_sensitivity()
+        
+        elif self.instrument=='pixie2024':
+            self.noise = self.pixie_sensitivity_2024()
+            # print(self.center_frequencies)
+            # print(self.noise)
         elif self.instrument=='firas':
             if self.low_or_high=="both":
                 self.center_frequencies_low, self.noise_inv_low,self.center_frequencies_high, self.noise_inv_high =self.firas_sensitivity()
@@ -180,6 +185,29 @@ class FisherEstimation:
             return (noise.reshape((int( N / self.binstep), self.binstep)).mean(axis=1)).astype(ndp)
         else:
             return (10. ** template(np.log10(self.center_frequencies)) / np.sqrt(skysr) * np.sqrt(15. / self.duration) * self.mult * 1.e26).astype(ndp)
+
+    def pixie_sensitivity_2024(self):
+        
+        sdata = np.loadtxt(this_dir+'/templates/pixie_mission_noise_hill.txt', dtype=ndp)    
+        high_freq_cut=np.where(sdata[:, 0] * 1e9 <self.fmax)[0]
+        self.center_frequencies= sdata[high_freq_cut, 0]* 1e9
+        sens = sdata[high_freq_cut, 1] #jy/sr
+        
+        # plt.figure()
+        # plt.plot(fs, sens, label='template')
+
+        # template = interpolate.interp1d(np.log10(fs), np.log10(sens), bounds_error=False, fill_value="extrapolate")        
+        # if self.bandpass:
+        #     N = len(self.band_frequencies)
+        #     noise = 10. ** template(np.log10(self.band_frequencies))
+        #     return (noise.reshape((int( N / self.binstep), self.binstep)).mean(axis=1)).astype(ndp)
+        # else:
+            # plt.plot(self.center_frequencies, (10. ** template(np.log10(self.center_frequencies))).astype(ndp), label='actual noise')
+            # plt.legend()
+            # plt.xscale('log')
+            # plt.savefig("test_interp.pdf")
+            # sys.exit(0)
+        return (sens).astype(ndp)
 
     def firas_sensitivity(self):
 
@@ -289,7 +317,7 @@ class FisherEstimation:
                     dfdpj = self.signal_derivative(self.args[j], self.p0[j])
                     F[i, j] = np.dot(first_term, dfdpj)
 
-        elif self.instrument=='pixie':
+        elif self.instrument=='pixie' or self.instrument=='pixie2024':
             N = len(self.p0)
             F = np.zeros([N, N], dtype=ndp)
             for i in range(N):
