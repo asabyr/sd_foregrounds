@@ -95,6 +95,19 @@ def dust_moments_omega2_omega3(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
 
     return zeroth * (1.+omega2*dIdbeta+omega3*dIdT)
 
+def dust_moments_omega2_omega3_bestfit(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
+    Td=21
+    Bd=1.51
+    Td=9.86515065e-01
+    Bd=2.37256467e+01
+    X = hplanck * nu / (kboltz * Td)
+    nu0 = 353.0e9
+    dIdbeta = np.log(nu/nu0)
+    dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
+    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
+
+    return zeroth * (1.+omega2*dIdbeta+omega3*dIdT)
+
 def dust_moments_omega2_omega3_omega22(nu, Ad=Ad_353, omega2=0.1, omega3=0.1, omega22=0.1):
     Td=21
     Bd=1.51
