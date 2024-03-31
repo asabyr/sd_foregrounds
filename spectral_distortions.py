@@ -18,7 +18,7 @@ def DeltaI_DeltaT(freqs, DeltaT_amp=1.2e-4*TCMB):
     X = hplanck*freqs/(kboltz*TCMB)
     return (DeltaT_amp/TCMB * X**4.0 * np.exp(X)/(np.exp(X) - 1.0)**2.0 * 2.0*(kboltz*TCMB)**3.0 / (hplanck*clight)**2.0 * jy).astype(ndp)
 
-def DeltaI_DeltaT_old(freqs, DeltaT_amp=1.2e-4):
+def DeltaI_DeltaT_Abitbol17(freqs, DeltaT_amp=1.2e-4):
     X = hplanck*freqs/(kboltz*TCMB)
     return (DeltaT_amp * X**4.0 * np.exp(X)/(np.exp(X) - 1.0)**2.0 * 2.0*(kboltz*TCMB)**3.0 / (hplanck*clight)**2.0 * jy).astype(ndp)
 
