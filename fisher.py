@@ -207,7 +207,7 @@ class FisherEstimation:
             # plt.xscale('log')
             # plt.savefig("test_interp.pdf")
             # sys.exit(0)
-        return (sens).astype(ndp)
+        return (sens* np.sqrt(7.7 / self.duration)*self.mult).astype(ndp)
 
     def firas_sensitivity(self):
 
