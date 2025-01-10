@@ -26,13 +26,13 @@ class FisherEstimation:
                 instrument='firas', 
                 fname='monopole_firas_freq_data_healpix_orthstipes_True_20230509.pkl', #monopole file, assumes it is in FIRAS code directory in /data
                 file_type='monopole', # monopole or noise (uses monopole or covariance file)
-                firas_method='invvar', # monopole method
-                low_or_high='lowf', #which frequencies to use
-                highf_thresh=1890, #if both or highf, then indicate upper bound
-                lowf_mask=[2,-1], #which channels to throw out in lowf
-                highf_mask=3, #which channels to throw out in highf
-                which_noise='tot', #which part of covariance to use 'C','beta','JCJ', 'PEP','PUP','PTP'
-                remove_lines=True, #remove channels near emission lines
+                firas_method='invvar', # monopole method ("invvar", "invcov_mod")
+                low_or_high='lowf', #which frequencies to use ("both" or "lowf")
+                highf_thresh=1890, #if both or highf, then indicate upper bound in GHz
+                lowf_mask=[2,-1], #which edge channels to throw out in lowf
+                highf_mask=3, #which lowest channels to throw out in highf
+                which_noise='tot', #which part of covariance to use 'C','beta','JCJ', 'PEP','PUP','PTP'; only relevant if using noise file
+                remove_lines=True, #remove channels near emission lines; only relevant if using noise file
                 arg_dict={}): #sky model parameters 
                 #!!!important!!
                 # arg_dict has to be in the order that sky model functions are given to fisher
@@ -66,7 +66,7 @@ class FisherEstimation:
         self.setup()
         self.set_signals()
 
-        if instrument=='pixie' or 'pixie2024':
+        if instrument=='pixie' or instrument=='pixie2024':
             if doCO:
                 self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
             else:
@@ -82,15 +82,14 @@ class FisherEstimation:
         
         elif self.instrument=='pixie2024':
             self.noise = self.pixie_sensitivity_2024()
-            # print(self.center_frequencies)
-            # print(self.noise)
+    
         elif self.instrument=='firas':
             if self.low_or_high=="both":
                 self.center_frequencies_low, self.noise_inv_low,self.center_frequencies_high, self.noise_inv_high =self.firas_sensitivity()
             else:
                 self.center_frequencies, self.noise_inv=self.firas_sensitivity()
         else:
-            sys.exit("pick 'firas' or 'pixie' as instrument")
+            sys.exit("pick 'firas' or 'pixie' or 'pixie2024' as instrument")
         return
 
     def run_fisher_calculation(self):
@@ -208,7 +207,7 @@ class FisherEstimation:
             # plt.savefig("test_interp.pdf")
             # sys.exit(0)
         return (sens* np.sqrt(7.7 / self.duration)*self.mult).astype(ndp)
-
+    
     def firas_sensitivity(self):
 
         #using monopole errors
