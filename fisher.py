@@ -10,13 +10,10 @@ this_dir=os.path.dirname(os.path.abspath(__file__))
 import sys
 firas_code_dir=this_dir.replace('software/sd_foregrounds','firas_distortions/code/')
 sys.path.append(firas_code_dir)
-from read_data import remove_lines, prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
+from read_data import prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
 import copy
 
 import matplotlib.pyplot as plt
-
-N_pixels=3072.0
-C_extra_factor=1.7
 
 class FisherEstimation:
     def __init__(self, fmin=7.5e9, fmax=3.e12, fstep=15.e9, \
@@ -25,20 +22,12 @@ class FisherEstimation:
                 #firas project additions
                 instrument='firas', 
                 fname='monopole_firas_freq_data_healpix_orthstipes_True_20230509.pkl', #monopole file, assumes it is in FIRAS code directory in /data
-                file_type='monopole', # monopole or noise (uses monopole or covariance file)
                 firas_method='invvar', # monopole method ("invvar", "invcov_mod")
                 low_or_high='lowf', #which frequencies to use ("both" or "lowf")
                 highf_thresh=1890, #if both or highf, then indicate upper bound in GHz
                 lowf_mask=[2,-1], #which edge channels to throw out in lowf
                 highf_mask=3, #which lowest channels to throw out in highf
-                which_noise='tot', #which part of covariance to use 'C','beta','JCJ', 'PEP','PUP','PTP'; only relevant if using noise file
-                remove_lines=True, #remove channels near emission lines; only relevant if using noise file
-                arg_dict={}): #sky model parameters 
-                #!!!important!!
-                # arg_dict has to be in the order that sky model functions are given to fisher
-                # (or in the order of the default "fncs" array if no functions are specified)
-                # !!!important!!
-
+                arg_dict={}): #sky model parameters
         self.fmin = fmin
         self.fmax = fmax
         self.bandpass_step = 1.e8
@@ -58,9 +47,9 @@ class FisherEstimation:
         self.highf_thresh=highf_thresh
         self.lowf_mask=lowf_mask
         self.highf_mask=highf_mask
-        self.file_type=file_type
-        self.which_noise=which_noise
-        self.remove_lines=remove_lines
+        # self.file_type=file_type
+        # self.which_noise=which_noise
+        # self.remove_lines=remove_lines
         self.arg_dict=arg_dict
 
         self.setup()
@@ -211,72 +200,19 @@ class FisherEstimation:
     def firas_sensitivity(self):
 
         #using monopole errors
-        if self.file_type=='monopole':
-            data=np.load(this_dir+'/data/'+self.fname, allow_pickle=True)
-            if self.low_or_high=="both":
+        data=np.load(this_dir+'/data/'+self.fname, allow_pickle=True)
+        if self.low_or_high=="both":
 
-                data_dict_high=prepare_data_highf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, cutoff_freq=self.highf_thresh, ind_mask=self.highf_mask)
-                data_dict_low=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            data_dict_high=prepare_data_highf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, cutoff_freq=self.highf_thresh, ind_mask=self.highf_mask)
+            data_dict_low=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
 
-                return data_dict_low['freqs'], data_dict_low['cov_inv'], data_dict_high['freqs'], data_dict_high['cov_inv']
+            return data_dict_low['freqs'], data_dict_low['cov_inv'], data_dict_high['freqs'], data_dict_high['cov_inv']
 
-            elif self.low_or_high=="lowf":
+        elif self.low_or_high=="lowf":
 
-                data_dict=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            data_dict=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
 
-                return data_dict['freqs'], data_dict['cov_inv']
-
-        #using covariance file
-        elif self.file_type=='noise':
-
-            freqs, tot, C, beta, JCJ, PEP, PUP, PTP=np.loadtxt(this_dir+'/data/'+self.fname, unpack=True)
-
-            if self.low_or_high=='lowf':
-                max_freq=640
-                mask_ind=np.where(freqs[self.lowf_mask[0]:self.lowf_mask[-1]]<max_freq)[0]
-            else:
-                mask_ind=np.where(freqs<self.highf_thresh)[0]
-
-            err=np.zeros(len(freqs))
-
-            if self.which_noise=='tot':
-                err=np.copy(np.abs(tot))/np.sqrt(N_pixels)
-
-            if 'C' in self.which_noise:
-                #print("including C")
-                skysr = 4. * np.pi * (180. / np.pi) ** 2 * self.fsky
-                err+=np.abs(C)/np.sqrt(skysr)*C_extra_factor
-
-            if 'beta' in self.which_noise:
-                #print("including beta")
-                err+=np.abs(beta)/np.sqrt(N_pixels)
-
-            if 'JCJ' in self.which_noise:
-                #print("including JCJ")
-                err+=np.abs(JCJ)/np.sqrt(N_pixels)
-
-            if 'PEP' in self.which_noise:
-                #print("including PEP")
-                err+=np.abs(PEP)/np.sqrt(N_pixels)
-
-            if 'PUP' in self.which_noise:
-                #print("including PUP")
-                err+=np.abs(PUP)/np.sqrt(N_pixels)
-
-            if 'PTP' in self.which_noise:
-                #print("including PTP")
-                err+=np.abs(PTP)/np.sqrt(N_pixels)
-
-            masked_freqs=freqs[mask_ind]*1e9
-            masked_err=err[mask_ind]*1.e6
-
-            if self.remove_lines==True:
-
-                outliers=remove_lines(masked_freqs,1.0)
-                masked_freqs=np.delete(masked_freqs, outliers)
-                masked_err=np.delete(masked_err, outliers)
-
-            return masked_freqs, masked_err
+            return data_dict['freqs'], data_dict['cov_inv']
 
     def get_function_args(self):
         targs = []
