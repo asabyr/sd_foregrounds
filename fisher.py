@@ -27,7 +27,10 @@ class FisherEstimation:
                 highf_thresh=1890, #if both or highf, then indicate upper bound in GHz
                 lowf_mask=[2,-1], #which edge channels to throw out in lowf
                 highf_mask=3, #which lowest channels to throw out in highf
-                arg_dict={}): #sky model parameters
+                arg_dict={}, 
+                binstep=0, 
+                binwidth=0): #sky model parameters
+        
         self.fmin = fmin
         self.fmax = fmax
         self.bandpass_step = 1.e8
@@ -47,11 +50,12 @@ class FisherEstimation:
         self.highf_thresh=highf_thresh
         self.lowf_mask=lowf_mask
         self.highf_mask=highf_mask
+        self.binstep=binstep
+        self.binwidth=binwidth
         # self.file_type=file_type
         # self.which_noise=which_noise
         # self.remove_lines=remove_lines
         self.arg_dict=arg_dict
-
         self.setup()
         self.set_signals()
 
@@ -73,6 +77,7 @@ class FisherEstimation:
             self.noise = self.pixie_sensitivity_2024()
     
         elif self.instrument=='firas':
+        
             if self.low_or_high=="both":
                 self.center_frequencies_low, self.noise_inv_low,self.center_frequencies_high, self.noise_inv_high =self.firas_sensitivity()
             else:
@@ -89,10 +94,12 @@ class FisherEstimation:
         if self.instrument=='firas' and self.low_or_high=="both":
             
             self.center_frequencies=copy.deepcopy(self.center_frequencies_low)
+            self.band_frequencies=copy.deepcopy(self.band_frequencies_low)
             self.noise_inv=copy.deepcopy(self.noise_inv_low)
             Flow = self.calculate_fisher_matrix()
 
             self.center_frequencies=copy.deepcopy(self.center_frequencies_high)
+            self.band_frequencies=copy.deepcopy(self.band_frequencies_high)
             self.noise_inv=copy.deepcopy(self.noise_inv_high)
             Fhigh = self.calculate_fisher_matrix()
             
@@ -197,6 +204,17 @@ class FisherEstimation:
             # sys.exit(0)
         return (sens* np.sqrt(7.7 / self.duration)*self.mult).astype(ndp)
     
+    def bandpass_for_firas(self, freqs):
+        
+        freqs_bandpass=np.array([])
+        half_bin=self.binwidth/2.0
+
+        for i in range(len(freqs)):
+            freqs_per_band=np.linspace(freqs[i]-half_bin,freqs[i]+half_bin, self.binstep)
+            freqs_bandpass=np.concatenate((freqs_bandpass,freqs_per_band))
+        
+        return freqs_bandpass
+        
     def firas_sensitivity(self):
 
         #using monopole errors
@@ -205,12 +223,17 @@ class FisherEstimation:
 
             data_dict_high=prepare_data_highf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, cutoff_freq=self.highf_thresh, ind_mask=self.highf_mask)
             data_dict_low=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            if self.bandpass==True:
+                self.band_frequencies_low=self.bandpass_for_firas(data_dict_low['freqs'])
+                self.band_frequencies_high=self.bandpass_for_firas(data_dict_high['freqs'])
 
             return data_dict_low['freqs'], data_dict_low['cov_inv'], data_dict_high['freqs'], data_dict_high['cov_inv']
 
         elif self.low_or_high=="lowf":
 
             data_dict=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            if self.bandpass==True:
+                self.band_frequencies=self.bandpass_for_firas(data_dict['freqs'])
 
             return data_dict['freqs'], data_dict['cov_inv']
 
