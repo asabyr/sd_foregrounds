@@ -1,5 +1,10 @@
 import numpy as np
 import os
+import sys
+sys.path.append("/moto/hill/users/as6131/software/SZpack/")
+import SZpack as SZ
+from scipy import interpolate
+
 ### See components for a better description of the signals.
 
 TCMB = 2.7255 #Kelvin
@@ -230,4 +235,42 @@ def DeltaI_reltSZ_Y1(freqs, y_tot, kT_yweight):
     DeltaIrelapprox = Planckian*Trelapprox / (TCMB*1e6)
 
     return DeltaIrelapprox*dT_factor
+
+def nu_to_x(f):
+    return hplanck*f/(kboltz*TCMB)
+
+def DeltaI_rel_SZpack(freqs, y_tot, kT_yweight):
+
+    x_array=nu_to_x(freqs)
+
+    if kT_yweight<=70:
+        dI_rel=SZ.compute_combo_from_variables(x_array, kT_yweight/m_elec, 0, 0, 10, 0, "monopole")
+    else:
+        #rel_corr_file=np.load(f"/moto/home/as6131/firas_distortions/data/3D_rel_precompute_70.0_1000.0_0pt1.npy", allow_pickle=True).item()
+        rel_corr_file=np.load(f"/moto/home/as6131/firas_distortions/data/3D_rel_precompute_70_200_0pt1.npy", allow_pickle=True).item()
+        interp_func=interpolate.interp1d(rel_corr_file['kTe'], rel_corr_file['dI'])
+        dI_rel=interp_func(kT_yweight)
+
+    theta=kT_yweight/m_elec
+    tau=y_tot/theta
+	
+    return dI_rel*tau*10**6
+
+def DeltaI_rel_SZpack_5D(freqs, y_tot, kT_yweight):
+    
+    x_array=nu_to_x(freqs)
+    rel_5D=SZ.Integral5D.compute_from_variables(x_array, kT_yweight/m_elec, 0., 0., 1.0e-6, "monopole")
+    theta=kT_yweight/m_elec
+    tau=y_tot/theta
+
+    return rel_5D*tau*10**6
+
+def DeltaI_rel_SZpack_3D(freqs, y_tot, kT_yweight):
+
+    x_array=nu_to_x(freqs)
+    rel_3D=SZ.Integral3D.compute_from_variables(x_array, kT_yweight/m_elec, 0., 0., 1.0e-4, "monopole")
+    theta=kT_yweight/m_elec
+    tau=y_tot/theta
+
+    return rel_3D*tau*10**6
 ###################################### additions ######################################
