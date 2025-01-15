@@ -95,11 +95,11 @@ def dust_moments_omega2_omega3(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
 
     return zeroth * (1.+omega2*dIdbeta+omega3*dIdT)
 
+#this function is based on best-fit dust params for high frequency data appendix of the paper
+#don't use for anything else! hard-coded for this specific test
 def dust_moments_omega2_omega3_bestfit(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
-    Td=21
-    Bd=1.51
-    Td=9.86515065e-01
-    Bd=2.37256467e+01
+    Bd=0.99
+    Td=23.7
     X = hplanck * nu / (kboltz * Td)
     nu0 = 353.0e9
     dIdbeta = np.log(nu/nu0)

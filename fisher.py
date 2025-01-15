@@ -10,13 +10,10 @@ this_dir=os.path.dirname(os.path.abspath(__file__))
 import sys
 firas_code_dir=this_dir.replace('software/sd_foregrounds','firas_distortions/code/')
 sys.path.append(firas_code_dir)
-from read_data import remove_lines, prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
+from read_data import prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
 import copy
 
 import matplotlib.pyplot as plt
-
-N_pixels=3072.0
-C_extra_factor=1.7
 
 class FisherEstimation:
     def __init__(self, fmin=7.5e9, fmax=3.e12, fstep=15.e9, \
@@ -25,20 +22,15 @@ class FisherEstimation:
                 #firas project additions
                 instrument='firas', 
                 fname='monopole_firas_freq_data_healpix_orthstipes_True_20230509.pkl', #monopole file, assumes it is in FIRAS code directory in /data
-                file_type='monopole', # monopole or noise (uses monopole or covariance file)
-                firas_method='invvar', # monopole method
-                low_or_high='lowf', #which frequencies to use
-                highf_thresh=1890, #if both or highf, then indicate upper bound
-                lowf_mask=[2,-1], #which channels to throw out in lowf
-                highf_mask=3, #which channels to throw out in highf
-                which_noise='tot', #which part of covariance to use 'C','beta','JCJ', 'PEP','PUP','PTP'
-                remove_lines=True, #remove channels near emission lines
-                arg_dict={}): #sky model parameters 
-                #!!!important!!
-                # arg_dict has to be in the order that sky model functions are given to fisher
-                # (or in the order of the default "fncs" array if no functions are specified)
-                # !!!important!!
-
+                firas_method='invvar', # monopole method ("invvar", "invcov_mod")
+                low_or_high='lowf', #which frequencies to use ("both" or "lowf")
+                highf_thresh=1890, #if both or highf, then indicate upper bound in GHz
+                lowf_mask=[2,-1], #which edge channels to throw out in lowf
+                highf_mask=3, #which lowest channels to throw out in highf
+                arg_dict={}, 
+                binstep=0, 
+                binwidth=0): #sky model parameters
+        
         self.fmin = fmin
         self.fmax = fmax
         self.bandpass_step = 1.e8
@@ -58,15 +50,16 @@ class FisherEstimation:
         self.highf_thresh=highf_thresh
         self.lowf_mask=lowf_mask
         self.highf_mask=highf_mask
-        self.file_type=file_type
-        self.which_noise=which_noise
-        self.remove_lines=remove_lines
+        self.binstep=binstep
+        self.binwidth=binwidth
+        # self.file_type=file_type
+        # self.which_noise=which_noise
+        # self.remove_lines=remove_lines
         self.arg_dict=arg_dict
-
         self.setup()
         self.set_signals()
 
-        if instrument=='pixie' or 'pixie2024':
+        if instrument=='pixie' or instrument=='pixie2024':
             if doCO:
                 self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
             else:
@@ -82,15 +75,15 @@ class FisherEstimation:
         
         elif self.instrument=='pixie2024':
             self.noise = self.pixie_sensitivity_2024()
-            # print(self.center_frequencies)
-            # print(self.noise)
+    
         elif self.instrument=='firas':
+        
             if self.low_or_high=="both":
                 self.center_frequencies_low, self.noise_inv_low,self.center_frequencies_high, self.noise_inv_high =self.firas_sensitivity()
             else:
                 self.center_frequencies, self.noise_inv=self.firas_sensitivity()
         else:
-            sys.exit("pick 'firas' or 'pixie' as instrument")
+            sys.exit("pick 'firas' or 'pixie' or 'pixie2024' as instrument")
         return
 
     def run_fisher_calculation(self):
@@ -101,10 +94,12 @@ class FisherEstimation:
         if self.instrument=='firas' and self.low_or_high=="both":
             
             self.center_frequencies=copy.deepcopy(self.center_frequencies_low)
+            self.band_frequencies=copy.deepcopy(self.band_frequencies_low)
             self.noise_inv=copy.deepcopy(self.noise_inv_low)
             Flow = self.calculate_fisher_matrix()
 
             self.center_frequencies=copy.deepcopy(self.center_frequencies_high)
+            self.band_frequencies=copy.deepcopy(self.band_frequencies_high)
             self.noise_inv=copy.deepcopy(self.noise_inv_high)
             Fhigh = self.calculate_fisher_matrix()
             
@@ -208,76 +203,39 @@ class FisherEstimation:
             # plt.savefig("test_interp.pdf")
             # sys.exit(0)
         return (sens* np.sqrt(7.7 / self.duration)*self.mult).astype(ndp)
+    
+    def bandpass_for_firas(self, freqs):
+        
+        freqs_bandpass=np.array([])
+        half_bin=self.binwidth/2.0
 
+        for i in range(len(freqs)):
+            freqs_per_band=np.linspace(freqs[i]-half_bin,freqs[i]+half_bin, self.binstep)
+            freqs_bandpass=np.concatenate((freqs_bandpass,freqs_per_band))
+        
+        return freqs_bandpass
+        
     def firas_sensitivity(self):
 
         #using monopole errors
-        if self.file_type=='monopole':
-            data=np.load(this_dir+'/data/'+self.fname, allow_pickle=True)
-            if self.low_or_high=="both":
+        data=np.load(this_dir+'/data/'+self.fname, allow_pickle=True)
+        if self.low_or_high=="both":
 
-                data_dict_high=prepare_data_highf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, cutoff_freq=self.highf_thresh, ind_mask=self.highf_mask)
-                data_dict_low=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            data_dict_high=prepare_data_highf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, cutoff_freq=self.highf_thresh, ind_mask=self.highf_mask)
+            data_dict_low=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            if self.bandpass==True:
+                self.band_frequencies_low=self.bandpass_for_firas(data_dict_low['freqs'])
+                self.band_frequencies_high=self.bandpass_for_firas(data_dict_high['freqs'])
 
-                return data_dict_low['freqs'], data_dict_low['cov_inv'], data_dict_high['freqs'], data_dict_high['cov_inv']
+            return data_dict_low['freqs'], data_dict_low['cov_inv'], data_dict_high['freqs'], data_dict_high['cov_inv']
 
-            elif self.low_or_high=="lowf":
+        elif self.low_or_high=="lowf":
 
-                data_dict=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            data_dict=prepare_data_lowf_masked_nolines(fname=self.fname,sky_frac=self.fsky,method=self.method, ind_mask=self.lowf_mask)
+            if self.bandpass==True:
+                self.band_frequencies=self.bandpass_for_firas(data_dict['freqs'])
 
-                return data_dict['freqs'], data_dict['cov_inv']
-
-        #using covariance file
-        elif self.file_type=='noise':
-
-            freqs, tot, C, beta, JCJ, PEP, PUP, PTP=np.loadtxt(this_dir+'/data/'+self.fname, unpack=True)
-
-            if self.low_or_high=='lowf':
-                max_freq=640
-                mask_ind=np.where(freqs[self.lowf_mask[0]:self.lowf_mask[-1]]<max_freq)[0]
-            else:
-                mask_ind=np.where(freqs<self.highf_thresh)[0]
-
-            err=np.zeros(len(freqs))
-
-            if self.which_noise=='tot':
-                err=np.copy(np.abs(tot))/np.sqrt(N_pixels)
-
-            if 'C' in self.which_noise:
-                #print("including C")
-                skysr = 4. * np.pi * (180. / np.pi) ** 2 * self.fsky
-                err+=np.abs(C)/np.sqrt(skysr)*C_extra_factor
-
-            if 'beta' in self.which_noise:
-                #print("including beta")
-                err+=np.abs(beta)/np.sqrt(N_pixels)
-
-            if 'JCJ' in self.which_noise:
-                #print("including JCJ")
-                err+=np.abs(JCJ)/np.sqrt(N_pixels)
-
-            if 'PEP' in self.which_noise:
-                #print("including PEP")
-                err+=np.abs(PEP)/np.sqrt(N_pixels)
-
-            if 'PUP' in self.which_noise:
-                #print("including PUP")
-                err+=np.abs(PUP)/np.sqrt(N_pixels)
-
-            if 'PTP' in self.which_noise:
-                #print("including PTP")
-                err+=np.abs(PTP)/np.sqrt(N_pixels)
-
-            masked_freqs=freqs[mask_ind]*1e9
-            masked_err=err[mask_ind]*1.e6
-
-            if self.remove_lines==True:
-
-                outliers=remove_lines(masked_freqs,1.0)
-                masked_freqs=np.delete(masked_freqs, outliers)
-                masked_err=np.delete(masked_err, outliers)
-
-            return masked_freqs, masked_err
+            return data_dict['freqs'], data_dict['cov_inv']
 
     def get_function_args(self):
         targs = []
