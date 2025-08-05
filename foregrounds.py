@@ -91,8 +91,8 @@ def dust_moments_omega2_omega3(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
     nu0 = 353.0e9
     dIdbeta = np.log(nu/nu0)
     dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
-    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
-
+    # zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
+    zeroth = Ad * (nu/nu0)**(Bd+3.0)/ (np.exp(X) - 1.)
     return zeroth * (1.+omega2*dIdbeta+omega3*dIdT)
 
 #this function is based on best-fit dust params for high frequency data appendix of the paper
@@ -104,7 +104,7 @@ def dust_moments_omega2_omega3_bestfit(nu, Ad=Ad_353, omega2=0.1, omega3=0.1):
     nu0 = 353.0e9
     dIdbeta = np.log(nu/nu0)
     dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
-    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
+    zeroth = Ad * (nu/nu0)**(Bd+3.0)/ (np.exp(X) - 1.)
 
     return zeroth * (1.+omega2*dIdbeta+omega3*dIdT)
 
@@ -115,9 +115,9 @@ def dust_moments_omega2_omega3_omega22(nu, Ad=Ad_353, omega2=0.1, omega3=0.1, om
     nu0 = 353.0e9
     dIdbeta = np.log(nu/nu0)
     dIdT = X * np.exp(X) / (np.exp(X) - 1.)/Td
-    zeroth = Ad * X**Bd * X**3 / (np.exp(X) - 1.)
+    zeroth = Ad * (nu/nu0)**(Bd+3.0)/ (np.exp(X) - 1.)
 
-    return zeroth * (1.+omega2*dIdbeta+omega3*dIdT+omega22*dIdbeta**2.0)
+    return zeroth * (1.+omega2*dIdbeta+omega3*dIdT+0.5*omega22*dIdbeta**2.0)
 ###################################### additions ######################################
 
 def dust_moments(nu, Adm=3.2e-4, alphadm=1.22, Tdm=21.1, omega1=0.09):

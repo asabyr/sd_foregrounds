@@ -27,9 +27,9 @@ class FisherEstimation:
                 highf_thresh=1890, #if both or highf, then indicate upper bound in GHz
                 lowf_mask=[2,-1], #which edge channels to throw out in lowf
                 highf_mask=3, #which lowest channels to throw out in highf
-                arg_dict={}, 
+                arg_dict={}, #sky model parameters
                 binstep=0, 
-                binwidth=0): #sky model parameters
+                binwidth=0): 
         
         self.fmin = fmin
         self.fmax = fmax
@@ -39,7 +39,7 @@ class FisherEstimation:
         self.bandpass = bandpass
         self.fsky = fsky #also FIRAS option
         self.mult = mult
-        self.priors = priors
+        self.priors = priors #also FIRAS option
         self.drop = drop
 
         #firas project additions
@@ -271,9 +271,11 @@ class FisherEstimation:
             for i in range(N):
                 dfdpi = self.signal_derivative(self.args[i], self.p0[i])
                 first_term=np.dot(dfdpi, self.noise_inv)
+
                 for j in range(N):
                     dfdpj = self.signal_derivative(self.args[j], self.p0[j])
                     F[i, j] = np.dot(first_term, dfdpj)
+
 
         elif self.instrument=='pixie' or self.instrument=='pixie2024':
             N = len(self.p0)
