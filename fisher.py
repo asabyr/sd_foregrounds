@@ -60,7 +60,8 @@ class FisherEstimation:
         self.flat_sens=flat_sens
         self.setup()
         self.set_signals()
-
+        if instrument!='firas':
+            assert self.fsky<=1.0
         if instrument=='pixie' or instrument=='pixie2024' or instrument=='flat_sens':
             if doCO:
                 self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
