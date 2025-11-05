@@ -8,7 +8,7 @@ ndp = np.float64
 this_dir=os.getcwd()
 this_dir=os.path.dirname(os.path.abspath(__file__))
 import sys
-firas_code_dir=this_dir.replace('software/sd_foregrounds','firas_distortions/code/')
+firas_code_dir=this_dir.replace('software/sd_foregrounds','software/firas_distortions/code/')
 sys.path.append(firas_code_dir)
 from read_data import prepare_data_lowf_masked_nolines, prepare_data_highf_masked_nolines
 import copy
@@ -29,7 +29,8 @@ class FisherEstimation:
                 highf_mask=3, #which lowest channels to throw out in highf
                 arg_dict={}, #sky model parameters
                 binstep=0, 
-                binwidth=0): 
+                binwidth=0, 
+                flat_sens=0): 
         
         self.fmin = fmin
         self.fmax = fmax
@@ -56,10 +57,11 @@ class FisherEstimation:
         # self.which_noise=which_noise
         # self.remove_lines=remove_lines
         self.arg_dict=arg_dict
+        self.flat_sens=flat_sens
         self.setup()
         self.set_signals()
 
-        if instrument=='pixie' or instrument=='pixie2024':
+        if instrument=='pixie' or instrument=='pixie2024' or instrument=='flat_sens':
             if doCO:
                 self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
             else:
@@ -82,6 +84,11 @@ class FisherEstimation:
                 self.center_frequencies_low, self.noise_inv_low,self.center_frequencies_high, self.noise_inv_high =self.firas_sensitivity()
             else:
                 self.center_frequencies, self.noise_inv=self.firas_sensitivity()
+        
+        elif self.instrument=='flat_sens':
+
+            self.center_frequencies, self.noise=self.flat_sensitivity()
+
         else:
             sys.exit("pick 'firas' or 'pixie' or 'pixie2024' as instrument")
         return
@@ -237,6 +244,14 @@ class FisherEstimation:
 
             return data_dict['freqs'], data_dict['cov_inv']
 
+    def flat_sensitivity(self):
+        
+        
+        center_frequencies=np.arange(self.fmin+self.fstep/2.0, self.fmax+self.fstep/2.0,self.fstep)
+    
+        return center_frequencies, self.flat_sens*np.ones(len(center_frequencies))/np.sqrt(self.fsky)
+        # /np.sqrt(skysr)
+
     def get_function_args(self):
         targs = []
         tp0 = []
@@ -277,7 +292,7 @@ class FisherEstimation:
                     F[i, j] = np.dot(first_term, dfdpj)
 
 
-        elif self.instrument=='pixie' or self.instrument=='pixie2024':
+        elif self.instrument=='pixie' or self.instrument=='pixie2024' or self.instrument=='flat_sens':
             N = len(self.p0)
             F = np.zeros([N, N], dtype=ndp)
             for i in range(N):
