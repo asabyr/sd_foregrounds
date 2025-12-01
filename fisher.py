@@ -62,7 +62,7 @@ class FisherEstimation:
         self.set_signals()
         if instrument!='firas':
             assert self.fsky<=1.0
-        if instrument=='pixie' or instrument=='pixie2024' or instrument=='flat_sens':
+        if instrument=='pixie' or instrument=='pixie2024' or instrument=='flat_sens' or instrument=='bisou':
             if doCO:
                 self.mask = ~np.isclose(115.27e9, self.center_frequencies, atol=self.fstep/2.)
             else:
@@ -89,6 +89,10 @@ class FisherEstimation:
         elif self.instrument=='flat_sens':
 
             self.center_frequencies, self.noise=self.flat_sensitivity()
+        
+        elif self.instrument=='bisou':
+
+            self.center_frequencies, self.noise=self.bisou_sensitivity()
 
         else:
             sys.exit("pick 'firas' or 'pixie' or 'pixie2024' as instrument")
@@ -251,7 +255,14 @@ class FisherEstimation:
         center_frequencies=np.arange(self.fmin+self.fstep/2.0, self.fmax+self.fstep/2.0,self.fstep)
     
         return center_frequencies, self.flat_sens*np.ones(len(center_frequencies))/np.sqrt(self.fsky)
-        # /np.sqrt(skysr)
+    
+    def bisou_sensitivity(self):
+        
+        
+        center_frequencies=np.arange(self.fmin+self.fstep/2.0, self.fmax+self.fstep/2.0,self.fstep)
+        #bisou noise curves are for fsky=0.1 so we need to rescale correctly
+        return center_frequencies, self.flat_sens*np.ones(len(center_frequencies))*np.sqrt(0.1/self.fsky)
+    
 
     def get_function_args(self):
         targs = []
@@ -293,7 +304,7 @@ class FisherEstimation:
                     F[i, j] = np.dot(first_term, dfdpj)
 
 
-        elif self.instrument=='pixie' or self.instrument=='pixie2024' or self.instrument=='flat_sens':
+        elif self.instrument=='pixie' or self.instrument=='pixie2024' or self.instrument=='flat_sens' or self.instrument=='bisou':
             N = len(self.p0)
             F = np.zeros([N, N], dtype=ndp)
             for i in range(N):
